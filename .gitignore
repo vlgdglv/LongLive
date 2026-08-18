@@ -4,3 +4,9 @@ longlive_models
 wan_models
 
 videos
+
+checkpoints/
+
+checkpoint_model_*
+
+*.vscode/

@@ -33,7 +33,7 @@ from utils.dataset import MultiTextDataset
 
 # ----------------------------- Argument parsing -----------------------------
 parser = argparse.ArgumentParser("Interactive causal inference")
-parser.add_argument("--config_path", type=str, help="Path to the config file")
+parser.add_argument("--config_path", type=str, help="Path to the config file", default="configs/longlive_interactive_inference.yaml")
 args = parser.parse_args()
 
 config = OmegaConf.load(args.config_path)
@@ -153,7 +153,7 @@ else:
 dataset = MultiTextDataset(config.data_path)
 
 # Validate number of segments & switch_frame_indices length
-num_segments = len(dataset[0]["prompts_list"])
+num_segments = len(dataset[1]["prompts_list"])
 assert len(switch_frame_indices) == num_segments - 1, (
     "The number of switch_frame_indices should be the number of prompt segments minus 1"
 )

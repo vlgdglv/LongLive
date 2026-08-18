@@ -167,6 +167,9 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
             device=noise.device
         )
 
+        _prof = {"frames": []}                                                                                                                                                                                                                                
+        _total_s = torch.cuda.Event(enable_timing=True); _total_s.record()      
+
         current_start_frame = 0
         self.generator.model.local_attn_size = self.local_attn_size
         print(f"[inference] local_attn_size set on model: {self.generator.model.local_attn_size}")
@@ -186,6 +189,7 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
             print("[MultipleSwitch] switch_frame_indices", switch_frame_indices)
 
         for current_num_frames in all_num_frames:
+            _frec = {"frame": current_start_frame, "denoise": [], "ctx_update_ms": 0.0} 
             if next_switch_pos is not None and current_start_frame >= next_switch_pos:
                 segment_idx += 1
                 self._recache_after_switch(output, current_start_frame, cond_list[segment_idx])
@@ -214,6 +218,8 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                     dtype=torch.int64)
                     * current_timestep
                 )
+                _s = torch.cuda.Event(enable_timing=True); _e = torch.cuda.Event(enable_timing=True)                                                                                                                                                          
+                _s.record()   
 
                 if index < len(self.denoising_step_list) - 1:
                     _, denoised_pred = self.generator(
@@ -242,9 +248,14 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                         crossattn_cache=self.crossattn_cache,
                         current_start=current_start_frame * self.frame_seq_length,
                     )
+                _e.record(); torch.cuda.synchronize()
+                _frec["denoise"].append(_s.elapsed_time(_e))
 
             # Record output
             output[:, current_start_frame : current_start_frame + current_num_frames] = denoised_pred.to(output.device)
+
+            _s = torch.cuda.Event(enable_timing=True); _e = torch.cuda.Event(enable_timing=True)                                                                                                                                                              
+            _s.record() 
 
             # rerun with clean context to update cache
             context_timestep = torch.ones_like(timestep) * self.args.context_noise
@@ -257,6 +268,10 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                 current_start=current_start_frame * self.frame_seq_length,
             )
 
+            _e.record(); torch.cuda.synchronize()                                                                                                                                                                                                             
+            _frec["ctx_update_ms"] = _s.elapsed_time(_e)                                                                                                                                                                                                                                                                                                                                                                                                            
+            _prof["frames"].append(_frec)                 
+            
             # Update frame pointer
             current_start_frame += current_num_frames
 
@@ -264,6 +279,11 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
         video = self.vae.decode_to_pixel(output.to(noise.device), use_cache=False)
         video = (video * 0.5 + 0.5).clamp(0, 1)
 
+        _total_e = torch.cuda.Event(enable_timing=True); _total_e.record()                                                                                                                                                                                    
+        torch.cuda.synchronize()                                                                                                                                                                                                                              
+        _prof["total_ms"] = _total_s.elapsed_time(_total_e)                                                                                                                                                                                                   
+        import json; print(json.dumps(_prof, indent=2))  
+        
         if return_latents:
             return video, output
         return video 

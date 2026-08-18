@@ -24,7 +24,7 @@ class WanTextEncoder(torch.nn.Module):
             device=torch.device('cpu')
         ).eval().requires_grad_(False)
         self.text_encoder.load_state_dict(
-            torch.load("wan_models/Wan2.1-T2V-1.3B/models_t5_umt5-xxl-enc-bf16.pth",
+            torch.load("/jizhicfs/pkuhetu/bht/model_home/Wan2.1-T2V-1.3B/models_t5_umt5-xxl-enc-bf16.pth",
                        map_location='cpu', weights_only=False)
         )
         
@@ -33,7 +33,7 @@ class WanTextEncoder(torch.nn.Module):
             self.text_encoder = self.text_encoder.cuda()
 
         self.tokenizer = HuggingfaceTokenizer(
-            name="wan_models/Wan2.1-T2V-1.3B/google/umt5-xxl/", seq_len=512, clean='whitespace')
+            name="/jizhicfs/pkuhetu/bht/model_home/Wan2.1-T2V-1.3B/google/umt5-xxl/", seq_len=512, clean='whitespace')
 
     @property
     def device(self):
@@ -73,7 +73,7 @@ class WanVAEWrapper(torch.nn.Module):
 
         # init model
         self.model = _video_vae(
-            pretrained_path="wan_models/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth",
+            pretrained_path="/jizhicfs/pkuhetu/bht/model_home/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth",
             z_dim=16,
         ).eval().requires_grad_(False)
 
@@ -290,6 +290,9 @@ class WanDiffusionWrapper(torch.nn.Module):
         cache_start: Optional[int] = None,
         sink_recache_after_switch=False
     ) -> torch.Tensor:
+        torch.cuda.reset_peak_memory_stats()                                                                                                                                                                                                                  
+        _mem_before = torch.cuda.memory_allocated() / 1e6 
+        
         prompt_embeds = conditional_dict["prompt_embeds"]
 
         # [B, F] -> [B]
@@ -311,6 +314,8 @@ class WanDiffusionWrapper(torch.nn.Module):
                 cache_start=cache_start,
                 sink_recache_after_switch=sink_recache_after_switch
             ).permute(0, 2, 1, 3, 4)
+            _mem_after_model = torch.cuda.memory_allocated() / 1e6                                                                                                                                                                                                
+            _mem_peak_model  = torch.cuda.max_memory_allocated() / 1e6       
         else:
             if clean_x is not None:
                 # teacher forcing
@@ -349,6 +354,10 @@ class WanDiffusionWrapper(torch.nn.Module):
             xt=noisy_image_or_video.flatten(0, 1),
             timestep=timestep.flatten(0, 1)
         ).unflatten(0, flow_pred.shape[:2])
+
+        _mem_after_x0 = torch.cuda.memory_allocated() / 1e6                                                                                                                                                                                                   
+        # print(f"[mem] before={_mem_before:.0f}MB  peak_in_model={_mem_peak_model:.0f}MB  "                                                                                                                                                                    
+        #         f"after_model={_mem_after_model:.0f}MB  after_x0={_mem_after_x0:.0f}MB")    
 
         if logits is not None:
             return flow_pred, pred_x0, logits

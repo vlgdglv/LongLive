@@ -37,7 +37,7 @@ from pipeline import (
     SwitchCausalInferencePipeline
 )
 from utils.debug_option import DEBUG, LOG_GPU_MEMORY, DEBUG_GRADIENT
-from one_logger_utils import OneLoggerUtils
+# from one_logger_utils import OneLoggerUtils
 import time
 
 class Trainer:
@@ -68,7 +68,7 @@ class Trainer:
 
         set_seed(config.seed + global_rank)
 
-        self.use_one_logger = getattr(config, "use_one_logger", True)
+        self.use_one_logger = getattr(config, "use_one_logger", False)
         if self.is_main_process and not self.disable_wandb:
             wandb.login(
                 # host=config.wandb_host,
@@ -86,40 +86,40 @@ class Trainer:
         app_start_time = time.time_ns() / 1_000_000 
         
         # ------------------------------------- One Logger Setup ----------------------------------------------
-        if self.use_one_logger and dist.get_rank() == 0 and not self.disable_wandb:
-            app_tag_run_name = f"dmd_{config.real_name[:6]}_local_attn_size_{config.model_kwargs.local_attn_size}_lr_{config.lr}"
-            app_tag_run_version = "0.0.0"
-            app_tag = f"{app_tag_run_name}_{app_tag_run_version}_{config.batch_size}_{dist.get_world_size()}"
-            one_logger_config = {
-                "enable_for_current_rank": True,
-                "one_logger_async": True,
-                "one_logger_project": getattr(config, "one_logger_project", "self-forcing"),
-                "log_every_n_train_iterations": getattr(config, "log_iters", 10),
-                "app_tag_run_version": app_tag_run_version,
-                "summary_data_schema_version": "1.0.0",
-                "app_run_type": "training",
-                "app_tag": app_tag,
-                "app_tag_run_name": app_tag_run_name,
-                "one_logger_run_name": app_tag_run_name,
-                "world_size": dist.get_world_size(),
-                "global_batch_size": config.batch_size * getattr(config, "gradient_accumulation_steps", 1) * dist.get_world_size(),
-                "batch_size": config.batch_size,
-                "train_iterations_target": getattr(config, "max_iters", 0),
-                "train_samples_target": (getattr(config, "max_iters", 0) * config.batch_size) if getattr(config, "max_iters", 0) else 0,
-                "is_train_iterations_enabled": True,
-                "is_baseline_run": False,
-                "is_test_iterations_enabled": False,
-                "is_validation_iterations_enabled": True,
-                "is_save_checkpoint_enabled": True,
-                "is_log_throughput_enabled": False,
-                "micro_batch_size": config.batch_size,
-                "seq_length": getattr(config, "image_or_video_shape")[1] * getattr(config, "image_or_video_shape")[3] * getattr(config, "image_or_video_shape")[4],
-                "save_checkpoint_strategy": "sync",
-            }
-            self.one_logger = OneLoggerUtils(one_logger_config)
-            self.one_logger.on_app_start(app_start_time = app_start_time)  
-        else:
-            self.one_logger = None
+        # if self.use_one_logger and dist.get_rank() == 0 and not self.disable_wandb:
+        #     app_tag_run_name = f"dmd_{config.real_name[:6]}_local_attn_size_{config.model_kwargs.local_attn_size}_lr_{config.lr}"
+        #     app_tag_run_version = "0.0.0"
+        #     app_tag = f"{app_tag_run_name}_{app_tag_run_version}_{config.batch_size}_{dist.get_world_size()}"
+        #     one_logger_config = {
+        #         "enable_for_current_rank": True,
+        #         "one_logger_async": True,
+        #         "one_logger_project": getattr(config, "one_logger_project", "self-forcing"),
+        #         "log_every_n_train_iterations": getattr(config, "log_iters", 10),
+        #         "app_tag_run_version": app_tag_run_version,
+        #         "summary_data_schema_version": "1.0.0",
+        #         "app_run_type": "training",
+        #         "app_tag": app_tag,
+        #         "app_tag_run_name": app_tag_run_name,
+        #         "one_logger_run_name": app_tag_run_name,
+        #         "world_size": dist.get_world_size(),
+        #         "global_batch_size": config.batch_size * getattr(config, "gradient_accumulation_steps", 1) * dist.get_world_size(),
+        #         "batch_size": config.batch_size,
+        #         "train_iterations_target": getattr(config, "max_iters", 0),
+        #         "train_samples_target": (getattr(config, "max_iters", 0) * config.batch_size) if getattr(config, "max_iters", 0) else 0,
+        #         "is_train_iterations_enabled": True,
+        #         "is_baseline_run": False,
+        #         "is_test_iterations_enabled": False,
+        #         "is_validation_iterations_enabled": True,
+        #         "is_save_checkpoint_enabled": True,
+        #         "is_log_throughput_enabled": False,
+        #         "micro_batch_size": config.batch_size,
+        #         "seq_length": getattr(config, "image_or_video_shape")[1] * getattr(config, "image_or_video_shape")[3] * getattr(config, "image_or_video_shape")[4],
+        #         "save_checkpoint_strategy": "sync",
+        #     }
+        #     self.one_logger = OneLoggerUtils(one_logger_config)
+        #     self.one_logger.on_app_start(app_start_time = app_start_time)  
+        # else:
+        self.one_logger = None
 
         # Step 2: Initialize the model
         if self.one_logger is not None:
