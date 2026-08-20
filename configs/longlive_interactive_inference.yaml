@@ -14,7 +14,7 @@ model_kwargs:
 
 
 # Inference
-data_path: longlive_models/prompts/interactive_example.jsonl
+data_path: longlive_models/prompts/interactive_example_one.jsonl
 output_folder: videos/interactive
 inference_iter: -1
 num_output_frames: 240
@@ -36,3 +36,8 @@ adapter:
   dropout: 0.0                # LoRA dropout rate
   dtype: "bfloat16"          # Data type for LoRA parameters: "bfloat16", "float16", "float32"
   verbose: false              # Whether to print all target module names
+
+latent_probe:
+  enabled: true
+  probe_seed: 114514
+  output_dir: outputs/probes/latent

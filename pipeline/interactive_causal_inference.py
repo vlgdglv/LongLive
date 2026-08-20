@@ -16,6 +16,7 @@ from pipeline.causal_inference import CausalInferencePipeline
 import torch.distributed as dist
 from utils.debug_option import DEBUG
 
+from probes.latent_collector import LatentCollector
 
 class InteractiveCausalInferencePipeline(CausalInferencePipeline):
     def __init__(
@@ -103,6 +104,7 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
         switch_frame_indices: List[int],
         return_latents: bool = False,
         low_memory: bool = False,
+        latent_collector: Optional[LatentCollector] = None,
     ):
         """Generate a video and switch prompts at specified frame indices.
 
@@ -203,7 +205,7 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                     else None
                 )
                 print(f"segment_idx: {segment_idx}")
-                print(f"text_prompts_list[segment_idx]: {text_prompts_list[segment_idx]}")
+                # print(f"text_prompts_list[segment_idx]: {text_prompts_list[segment_idx]}")
             cond_in_use = cond_list[segment_idx]
 
             noisy_input = noise[
@@ -219,8 +221,8 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                     * current_timestep
                 )
                 _s = torch.cuda.Event(enable_timing=True); _e = torch.cuda.Event(enable_timing=True)                                                                                                                                                          
-                _s.record()   
-
+                _s.record()
+                noisy_input_berfore = noisy_input.detach().clone()
                 if index < len(self.denoising_step_list) - 1:
                     _, denoised_pred = self.generator(
                         noisy_image_or_video=noisy_input,
@@ -251,6 +253,19 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                 _e.record(); torch.cuda.synchronize()
                 _frec["denoise"].append(_s.elapsed_time(_e))
 
+                # Maybe collector want to collect nosie
+                if latent_collector is not None and latent_collector.enabled:
+                    latent_collector.capture_latent(
+                        denoised_block=denoised_pred,
+                        noisy_input=noisy_input_berfore,
+                        global_block=current_start_frame,
+                        current_denoise_timestep_index=index,
+                        current_denoise_timestep=self.denoising_step_list[index],
+                        max_denoise_step=len(self.denoising_step_list),
+                        prompt_embeds=cond_in_use["prompt_embeds"],
+                        prompts_id=segment_idx,
+                    )
+                    
             # Record output
             output[:, current_start_frame : current_start_frame + current_num_frames] = denoised_pred.to(output.device)
 
@@ -268,6 +283,9 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
                 current_start=current_start_frame * self.frame_seq_length,
             )
 
+            if latent_collector is not None and latent_collector.enabled:
+                    latent_collector.capture_kv(global_block=current_start_frame, kv_cache=self.kv_cache1)
+
             _e.record(); torch.cuda.synchronize()                                                                                                                                                                                                             
             _frec["ctx_update_ms"] = _s.elapsed_time(_e)                                                                                                                                                                                                                                                                                                                                                                                                            
             _prof["frames"].append(_frec)                 
@@ -282,7 +300,7 @@ class InteractiveCausalInferencePipeline(CausalInferencePipeline):
         _total_e = torch.cuda.Event(enable_timing=True); _total_e.record()                                                                                                                                                                                    
         torch.cuda.synchronize()                                                                                                                                                                                                                              
         _prof["total_ms"] = _total_s.elapsed_time(_total_e)                                                                                                                                                                                                   
-        import json; print(json.dumps(_prof, indent=2))  
+        # import json; print(json.dumps(_prof, indent=2))  
         
         if return_latents:
             return video, output

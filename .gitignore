@@ -10,3 +10,5 @@ checkpoints/
 checkpoint_model_*
 
 *.vscode/
+
+outputs/

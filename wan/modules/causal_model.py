@@ -842,6 +842,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             cache_update_infos: List of (block_index, cache_update_info) tuples
         """
         for block_index, (current_end, local_end_index, update_info) in cache_update_infos:
+            rec_write_start_index, rec_write_end_index = 0, 0
             if update_info is not None:
                 cache = kv_cache[block_index]
                 
@@ -867,7 +868,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                     if write_end_index > write_start_index and new_k.shape[1] == (write_end_index - write_start_index):
                         cache["k"][:, write_start_index:write_end_index] = new_k
                         cache["v"][:, write_start_index:write_end_index] = new_v
-                    
+                        rec_write_start_index, rec_write_end_index = write_start_index, write_end_index
                 elif update_info["action"] == "direct_insert":
                     # Direct insert
                     local_start_index = update_info["local_start_index"]
@@ -881,12 +882,14 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                     if write_end_index > write_start_index and new_k.shape[1] == (write_end_index - write_start_index):
                         cache["k"][:, write_start_index:write_end_index] = new_k
                         cache["v"][:, write_start_index:write_end_index] = new_v
-            
+                        rec_write_start_index, rec_write_end_index = write_start_index, write_end_index
+
             # Update indices: do not roll back pointers during recomputation
             is_recompute = False if update_info is None else update_info.get("is_recompute", False)
             if not is_recompute:
                 kv_cache[block_index]["global_end_index"].fill_(current_end)
                 kv_cache[block_index]["local_end_index"].fill_(local_end_index)
+                kv_cache[block_index]["write_info"] = (rec_write_start_index, rec_write_end_index)
 
     def _forward_inference(
         self,
