@@ -19,7 +19,7 @@ output_folder: videos/interactive
 inference_iter: -1
 num_output_frames: 240
 use_ema: false
-seed: 1
+seed: 42
 num_samples: 1
 save_with_index: true
 switch_frame_indices: 40, 80, 120, 160, 200

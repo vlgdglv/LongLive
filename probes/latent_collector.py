@@ -100,7 +100,7 @@ class LatentCollector:
             for k, v in  self._block_buffer_dict.items():
                 print(k, ": ",v["input_timestep"], v["input_before_forward"].shape, v["pred_x0"].shape, )
             torch.save({
-                "latents": self._block_buffer_dict[current_denoise_timestep_index],
+                "latents": self._block_buffer_dict,
                 "embed_path": embed_path,
             }, block_path)
         
